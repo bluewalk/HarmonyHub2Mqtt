@@ -175,7 +175,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
         {
             _discoveryService.StopDiscovery();
             _hubs.ForEach(async h => await h.Disconnect());
-            _mqttClient?.StopAsync();
+            await _mqttClient?.StopAsync();
 
             SaveHubListToFile();
         }
