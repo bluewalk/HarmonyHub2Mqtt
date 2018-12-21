@@ -39,8 +39,8 @@
             // serviceInstaller
             // 
             this.serviceInstaller.DelayedAutoStart = true;
-            this.serviceInstaller.DisplayName = "Bluewalk Harmony2Mqtt";
-            this.serviceInstaller.ServiceName = "BluewalkHarmony2Mqtt";
+            this.serviceInstaller.DisplayName = "Bluewalk HarmonyHub2Mqtt";
+            this.serviceInstaller.ServiceName = "BluewalkHarmonyHub2Mqtt";
             this.serviceInstaller.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
             // 
             // ProjectInstaller
