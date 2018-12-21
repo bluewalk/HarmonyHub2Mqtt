@@ -81,6 +81,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\AssemblyVersionInfo.cs">
+      <Link>AssemblyVersionInfo.cs</Link>
+    </Compile>
     <Compile Include="Hub2MqttLogic.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
