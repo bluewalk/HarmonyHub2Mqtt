@@ -1,15 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Configuration;
+﻿using System.Configuration;
 using System.Configuration.Install;
-using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.ServiceProcess;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Net.Bluewalk.HarmonyHub2Mqtt.Service
 {
@@ -33,7 +26,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt.Service
             {
                 var parameter = string.Concat(args);
 
-                var svc = ServiceController.GetServices().FirstOrDefault(s => s.ServiceName == "BluewalkHarmony2Mqtt");
+                var svc = ServiceController.GetServices().FirstOrDefault(s => s.ServiceName == "BluewalkHarmonyHub2Mqtt");
 
                 switch (parameter)
                 {
