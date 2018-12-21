@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Timers;
 using Harmony;
 using MQTTnet;
 using MQTTnet.Client;
@@ -55,9 +53,9 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
         public void LoadHubListFromFile(string fileName = null)
         {
             if (!File.Exists(fileName ?? _hubFileName))
-                throw new FileNotFoundException();
+                return;
 
-            var json = File.ReadAllText(fileName);
+            var json = File.ReadAllText(fileName ?? _hubFileName);
 
             _hubs = JsonConvert.DeserializeObject<List<Hub>>(json);
             _hubs?.ForEach(async h => await PrepareHub(h));
@@ -71,7 +69,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
         private async Task PrepareHub(Hub hub)
         {
             hub.OnActivityProgress += async (o, args) =>
-                await Publish($"{hub.Info.RemoteId}/activity/{args.Activity.Id}/progress", args.Progress);
+                await Publish($"{hub.Info.RemoteId}/activity/{args?.Activity.Id}/progress", args.Progress);
             hub.OnActivityRan += async (o, args) =>
                 await Publish($"{hub.Info.RemoteId}/activity/current", args.Response.Data);
             hub.OnChannelChanged += async (o, args) =>
@@ -115,7 +113,6 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
         private async void SubscribeTopic(string topic)
         {
-            if (_mqttClient == null || !_mqttClient.IsConnected) return;
             topic = $"{_mqttRootTopic}/{topic}";
 
 #if DEBUG
@@ -135,7 +132,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             /**
              * Topic[0] = _rootTopic
              * Topic[1] = RemoteId
-             * Topic[2] = Activity | Channel
+             * Topic[2] = Activity | Channel | Sync
              */
             var hub = _hubs.FirstOrDefault(h => h.Info.RemoteId.Equals(topic[1]));
             if (hub == null) return;
@@ -151,6 +148,11 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
                 case "CHANNEL":
                     await hub.ChangeChannel(message);
                     break;
+                case "SYNC":
+                    await hub.SyncConfigurationAsync();
+                    await hub.UpdateStateAsync();
+                    break;
+
             }
         }
         #endregion
@@ -161,8 +163,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
                 .WithAutoReconnectDelay(TimeSpan.FromSeconds(5))
                 .WithClientOptions(new MqttClientOptionsBuilder()
                     .WithClientId($"BluewalkHarmony2Mqtt-{Environment.MachineName}")
-                    .WithTcpServer(_mqttHost, _mqttPort)
-                    .WithTls().Build())
+                    .WithTcpServer(_mqttHost, _mqttPort))
                 .Build();
 
             await _mqttClient.StartAsync(options);
