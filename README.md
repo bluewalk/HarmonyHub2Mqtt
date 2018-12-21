@@ -12,7 +12,7 @@ Edit the `Net.Bluewalk.HarmonyHub2Mqtt.Service.exe.config` file and set the foll
   <appSettings>
     <add key="MQTT_Host" value="127.0.0.1" />
     <add key="MQTT_Port" value="1883" />
-    <add key="MQTT_RootTopic" value="hue" />
+    <add key="MQTT_RootTopic" value="harmonyhub" />
   </appSettings>
   ```
 
