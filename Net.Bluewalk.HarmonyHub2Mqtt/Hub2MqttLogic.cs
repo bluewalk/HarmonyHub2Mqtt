@@ -37,7 +37,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             _mqttClient = new MqttFactory().CreateManagedMqttClient();
             _mqttClient.ApplicationMessageReceived += MqttClientOnApplicationMessageReceived;
-            _mqttClient.Connected += (sender, args) => Logger.LogMessage("MQTT: Connceted");
+            _mqttClient.Connected += (sender, args) => Logger.LogMessage("MQTT: Connected");
             _mqttClient.ConnectingFailed += (sender, args) =>
                 Logger.LogMessage("MQTT: Unable to connect ({0})", args.Exception.Message);
             _mqttClient.Disconnected += (sender, args) => Logger.LogMessage("MQTT: Disconnected");
@@ -78,7 +78,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             hub.OnChannelChanged += async (o, args) =>
                 await Publish($"{hub.Info.RemoteId}/channel/current", args.Response.Data);
             hub.OnHubSynchronized += async (o, args) =>
-                await Publish($"{hub.Info.RemoteId}/syncstatus", args.Response.Data);
+                await Publish($"{hub.Info.RemoteId}/sync-status", args.Response.Data);
             hub.OnStateDigestReceived += async (o, args) =>
                 await Publish($"{hub.Info.RemoteId}/state", args.Response.Data);
 

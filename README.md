@@ -65,6 +65,7 @@ The hub will - after some time - return a JSON object containing the `remoteId`.
 | {remoteId}/activity/current | readonly | JSON object containing details of the active activity (updated on activity change)|
 | {remoteId}/chanel/current | readonly | JSON object containing details of the current channel (updated on channel change)|
 | {remoteId}/state | readonly | JSON object containing details of the state (updated on state change)|
+| {remoteId}/sync-status | readonly | JSON object containing the status of the current synchronization|
 | {remoteId}/activity | write | Send `id` of an activity to this channel to start the activity associated with the `id` or leave empty to stop active activity|
 | {remoteId}/channel | write | Send `id` of an channel to this channel to start the channel associated with the `id`|
 
