@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Net.Bluewalk.LogTools
 {
@@ -12,6 +13,7 @@ namespace Net.Bluewalk.LogTools
             + "{0}.log";
 
         private static readonly string _currentLogFile = string.Format(_logFileTemplate, string.Empty);
+        private static Timer _rotateTimer;
         
         public static void LogException(Exception e)
         {
@@ -65,8 +67,20 @@ namespace Net.Bluewalk.LogTools
 
         public static void Initialize()
         {
-            if (File.Exists(_currentLogFile) && File.GetCreationTime(_currentLogFile).Date <= DateTime.Now.Date.AddDays(-1))
-                LogRotate();
+            var now = DateTime.Now;
+            var firstRun = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, 0);
+            if (now > firstRun)
+                firstRun = firstRun.AddDays(1);
+
+            var timeToGo = firstRun - now;
+            if (timeToGo <= TimeSpan.Zero)
+                timeToGo = TimeSpan.Zero;
+
+            _rotateTimer = new Timer(x =>
+            {
+                if (File.Exists(_currentLogFile) && File.GetCreationTime(_currentLogFile).Date <= DateTime.Now.Date.AddDays(-1))
+                    LogRotate();
+            }, null, timeToGo, TimeSpan.FromDays(1));
         }
 
         private static void LogMessageToFile(string message)
@@ -83,7 +97,10 @@ namespace Net.Bluewalk.LogTools
                     streamWriter.Close();
                 }
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
         }
 
         public static void LogRotate()
