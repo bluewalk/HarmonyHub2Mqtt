@@ -37,7 +37,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             _mqttClient = new MqttFactory().CreateManagedMqttClient();
             _mqttClient.ApplicationMessageReceived += MqttClientOnApplicationMessageReceived;
-            _mqttClient.Connected += (sender, args) => Logger.LogMessage("MQTT: Connceted");
+            _mqttClient.Connected += (sender, args) => Logger.LogMessage("MQTT: Connected");
             _mqttClient.ConnectingFailed += (sender, args) =>
                 Logger.LogMessage("MQTT: Unable to connect ({0})", args.Exception.Message);
             _mqttClient.Disconnected += (sender, args) => Logger.LogMessage("MQTT: Disconnected");
@@ -59,7 +59,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             var json = File.ReadAllText(_hubFileName);
 
             _hubs = JsonConvert.DeserializeObject<List<Hub>>(json);
-            Logger.LogMessage("{0} hubs loaded", _hubs.Count);
+            Logger.LogMessage("{0} hub(s) loaded", _hubs.Count);
             _hubs?.ForEach(async h => await PrepareHub(h));
         }
 
@@ -78,7 +78,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             hub.OnChannelChanged += async (o, args) =>
                 await Publish($"{hub.Info.RemoteId}/channel/current", args.Response.Data);
             hub.OnHubSynchronized += async (o, args) =>
-                await Publish($"{hub.Info.RemoteId}/syncstatus", args.Response.Data);
+                await Publish($"{hub.Info.RemoteId}/sync-status", args.Response.Data);
             hub.OnStateDigestReceived += async (o, args) =>
                 await Publish($"{hub.Info.RemoteId}/state", args.Response.Data);
 
@@ -87,9 +87,9 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             Logger.LogMessage("Hub: Connecting to {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
             await hub.ConnectAsync(_deviceId);
-            Logger.LogMessage("Hub: Synchronizing configuration");
+            Logger.LogMessage("Hub: Synchronizing configuration for {0}", hub.Info.FriendlyName);
             await hub.SyncConfigurationAsync();
-            Logger.LogMessage("Hub: Updating state");
+            Logger.LogMessage("Hub: Updating state for {0}", hub.Info.FriendlyName);
             await hub.UpdateStateAsync();
         }
 
@@ -210,7 +210,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             Logger.LogMessage("MQTT: Connecting to {0}:{1}", _mqttHost, _mqttPort);
             await _mqttClient.StartAsync(options);
 
-            Task.Run(PerformDiscovery);
+            await Task.Run(PerformDiscovery);
         }
 
         public async Task Stop()
