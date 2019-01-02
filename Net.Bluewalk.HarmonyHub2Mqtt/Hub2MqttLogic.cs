@@ -147,22 +147,28 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             var hub = _hubs.FirstOrDefault(h => h.Info.RemoteId.Equals(topic[1]));
             if (hub == null) return;
 
-            switch (topic[2])
+            try
             {
-                case "ACTIVITY":
-                    if (!string.IsNullOrEmpty(message))
-                        await hub.StartActivity(new Activity() { Id = message });
-                    else
-                        await hub.EndActivity();
-                    break;
-                case "CHANNEL":
-                    await hub.ChangeChannel(message);
-                    break;
-                case "SYNC":
-                    await hub.SyncConfigurationAsync();
-                    await hub.UpdateStateAsync();
-                    break;
-
+                switch (topic[2])
+                {
+                    case "ACTIVITY":
+                        if (!string.IsNullOrEmpty(message))
+                            await hub.StartActivity(new Activity() {Id = message});
+                        else
+                            await hub.EndActivity();
+                        break;
+                    case "CHANNEL":
+                        await hub.ChangeChannel(message);
+                        break;
+                    case "SYNC":
+                        await hub.SyncConfigurationAsync();
+                        await hub.UpdateStateAsync();
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex);
             }
         }
         #endregion
