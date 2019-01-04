@@ -83,6 +83,7 @@
       <Link>AssemblyVersionInfo.cs</Link>
     </Compile>
     <Compile Include="Hub2MqttLogic.cs" />
+    <Compile Include="MqttHubHelper.cs" />
     <Compile Include="Tools\Logger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
