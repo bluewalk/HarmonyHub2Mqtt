@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,7 +30,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
         {
             Logger.Initialize();
 
-            _mqttRootTopic = mqttRootTopic;
+            _mqttRootTopic = !string.IsNullOrEmpty(mqttRootTopic) ? mqttRootTopic : "harmonyhub";
             _mqttHost = mqttHost;
             _mqttPort = mqttPort;
 
@@ -82,8 +83,13 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             hub.OnStateDigestReceived += async (o, args) =>
                 await Publish($"{hub.Info.RemoteId}/state", args.Response.Data);
 
+            var user = await hub.GetUserInfo();
+            await Publish($"{hub.Info.RemoteId}/user", user);
+
             SubscribeTopic($"{hub.Info.RemoteId}/activity");
             SubscribeTopic($"{hub.Info.RemoteId}/channel");
+            SubscribeTopic($"{hub.Info.RemoteId}/button");
+            SubscribeTopic($"{hub.Info.RemoteId}/button-sequence");
 
             Logger.LogMessage("Hub: Connecting to {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
             await hub.ConnectAsync(_deviceId);
@@ -141,28 +147,43 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 #endif
             /**
              * Topic[0] = _rootTopic
-             * Topic[1] = RemoteId
-             * Topic[2] = Activity | Channel | Sync
+             * Topic[1] = {RemoteId} | Discover
+             * Topic[2] = Activity | Channel | Sync | Button | Buttons
              */
             var hub = _hubs.FirstOrDefault(h => h.Info.RemoteId.Equals(topic[1]));
             if (hub == null) return;
 
             try
             {
-                switch (topic[2])
+                switch (topic[1])
                 {
-                    case "ACTIVITY":
-                        if (!string.IsNullOrEmpty(message))
-                            await hub.StartActivity(new Activity() {Id = message});
+                    case "DISCOVER":
+                        if (IPAddress.TryParse(message, out var ip))
+                            await Task.Run(() => PerformDiscoveryByIp(ip));
                         else
-                            await hub.EndActivity();
+                            await Task.Run(PerformDiscovery);
                         break;
-                    case "CHANNEL":
-                        await hub.ChangeChannel(message);
-                        break;
-                    case "SYNC":
-                        await hub.SyncConfigurationAsync();
-                        await hub.UpdateStateAsync();
+
+                    default:
+                        switch (topic[2])
+                        {
+                            case "ACTIVITY":
+                                await hub.MqttSetActivity(message);
+                                break;
+                            case "CHANNEL":
+                                await hub.MqttChangeChannel(message);
+                                break;
+                            case "BUTTON":
+                                await hub.MqttButton(message);
+                                break;
+                            case "BUTTON-SEQUENCE":
+                                await hub.MqttButtons(message);
+                                break;
+                            case "SYNC":
+                                await hub.MqttSync();
+                                break;
+                        }
+
                         break;
                 }
             }
@@ -173,6 +194,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
         }
         #endregion
 
+        #region Discovery
         public async Task PerformDiscovery()
         {
             Logger.LogMessage("Discovery: Starting");
@@ -182,7 +204,9 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
                 if (_hubs.Any(h => h.Info.RemoteId.Equals(e.HubInfo.RemoteId))) return;
 
                 var hub = new Hub(e.HubInfo);
-                Logger.LogMessage("Discovery: Found hub {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
+
+                Logger.LogMessage("Discovery: Found new hub {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
+                await Publish("discover/status", hub);
 
                 await PrepareHub(hub);
                 _hubs.Add(hub);
@@ -204,6 +228,24 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             discoveryService.StopDiscovery();
         }
 
+        public async Task PerformDiscoveryByIp(IPAddress ip)
+        {
+            Logger.LogMessage("Discovery: Starting discovery by IP address: {0}", ip);
+
+            var hubInfo = await MqttHubHelper.DiscoverByIp(ip);
+            if (hubInfo == null) throw new Exception($"No hub on {ip}");
+
+            var hub = new Hub(hubInfo);
+
+            Logger.LogMessage("Discovery: Found new hub {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
+            Logger.LogMessage("Discovery: Stopping");
+            await Publish("discover/status", hub);
+
+            await PrepareHub(hub);
+            _hubs.Add(hub);
+        }
+        #endregion
+
         public async Task Start()
         {
             var options = new ManagedMqttClientOptionsBuilder()
@@ -216,6 +258,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             Logger.LogMessage("MQTT: Connecting to {0}:{1}", _mqttHost, _mqttPort);
             await _mqttClient.StartAsync(options);
 
+            SubscribeTopic("discover");
             await Task.Run(PerformDiscovery);
         }
 
@@ -226,5 +269,13 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             SaveHubListToFile();
         }
+    }
+
+    public class PressButtons
+    {
+        [JsonProperty("delay")]
+        public int Delay { get; set; }
+        [JsonProperty("functions")]
+        public IEnumerable<string> Functions { get; set; }
     }
 }
