@@ -38,7 +38,12 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             _mqttClient = new MqttFactory().CreateManagedMqttClient();
             _mqttClient.ApplicationMessageReceived += MqttClientOnApplicationMessageReceived;
-            _mqttClient.Connected += (sender, args) => Logger.LogMessage("MQTT: Connected");
+            _mqttClient.Connected += (sender, args) =>
+            {
+                Logger.LogMessage("MQTT: Connected");
+
+                SubscribeTopic("discover");
+            };
             _mqttClient.ConnectingFailed += (sender, args) =>
                 Logger.LogMessage("MQTT: Unable to connect ({0})", args.Exception.Message);
             _mqttClient.Disconnected += (sender, args) => Logger.LogMessage("MQTT: Disconnected");
@@ -82,9 +87,6 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
                 await Publish($"{hub.Info.RemoteId}/sync-status", args.Response.Data);
             hub.OnStateDigestReceived += async (o, args) =>
                 await Publish($"{hub.Info.RemoteId}/state", args.Response.Data);
-
-            var user = await hub.GetUserInfo();
-            await Publish($"{hub.Info.RemoteId}/user", user);
 
             SubscribeTopic($"{hub.Info.RemoteId}/activity");
             SubscribeTopic($"{hub.Info.RemoteId}/channel");
@@ -150,9 +152,6 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
              * Topic[1] = {RemoteId} | Discover
              * Topic[2] = Activity | Channel | Sync | Button | Buttons
              */
-            var hub = _hubs.FirstOrDefault(h => h.Info.RemoteId.Equals(topic[1]));
-            if (hub == null) return;
-
             try
             {
                 switch (topic[1])
@@ -165,6 +164,9 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
                         break;
 
                     default:
+                        var hub = _hubs.FirstOrDefault(h => h.Info?.RemoteId.Equals(topic[1]) == true);
+                        if (hub == null) return;
+
                         switch (topic[2])
                         {
                             case "ACTIVITY":
@@ -258,7 +260,6 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             Logger.LogMessage("MQTT: Connecting to {0}:{1}", _mqttHost, _mqttPort);
             await _mqttClient.StartAsync(options);
 
-            SubscribeTopic("discover");
             await Task.Run(PerformDiscovery);
         }
 
