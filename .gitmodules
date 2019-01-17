@@ -1,3 +1,4 @@
 [submodule "Lib/Harmony.NET"]
 	path = Lib/Harmony.NET
-	url = https://github.com/jlynch630/Harmony.NET.git
+	url = https://github.com/bluewalk/Harmony.NET.git
+	branch = websocketsharp
