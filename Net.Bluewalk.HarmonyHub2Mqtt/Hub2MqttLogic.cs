@@ -94,7 +94,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             SubscribeTopic($"{hub.Info.RemoteId}/button-sequence");
 
             Logger.LogMessage("Hub: Connecting to {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
-            await hub.ConnectAsync(_deviceId);
+            hub.ConnectAsync(_deviceId);
             Logger.LogMessage("Hub: Synchronizing configuration for {0}", hub.Info.FriendlyName);
             await hub.SyncConfigurationAsync();
             Logger.LogMessage("Hub: Updating state for {0}", hub.Info.FriendlyName);
@@ -265,7 +265,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
         public async Task Stop()
         {
-            _hubs.ForEach(async h => await h.Disconnect());
+            _hubs.ForEach(h => h.Disconnect());
             await _mqttClient?.StopAsync();
 
             SaveHubListToFile();
