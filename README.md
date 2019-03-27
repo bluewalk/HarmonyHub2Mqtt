@@ -40,34 +40,40 @@ The layout consists of an array of objects lik `{"Info": {"ip": "192.168.1.10","
     }
 ]
 ```
-You are required to know the remoteId of the hub in order to connect. If you don't know this Id you will have to run the service on the same network __once__ or if you know the IP-adrress, send a `POST` request with the following headers and body to `http://{ip}:8088/`:
-#### headers
-```
-Content-Type: application/json
-Origin: http://localhost.nebula.myharmony.com
-Accept: application/json
-Accept-Charset: utf-8
-```
-#### body
-```
-{
-"id ": 124,
-"cmd": "connect.discoveryinfo?get",
-"params": {}
-}
-```
-The hub will - after some time - return a JSON object containing the `remoteId`.
+You are required to know the remoteId of the hub in order to connect. If you don't know this Id you will have to run the service on the same network __once__ or if you know the IP-adrress, trigger a manual discovery by IP address, see MQTT Topics below.
 
 ## MQTT Topics
+
+___!NOTE: Prepend the root-topic if provided in the config, by default `harmonyhub`___
+
 | Topic | Type | Data |
 |-|-|-|
+| discover | write | `true` to start hub discovery after initial discovery upon start, `ip address` to discover a hub by IP address - eg when the hub is on another vlan/subnet|
+| discover/status | read | JSON object containing the latest hub found during the discovery process|
 | {remoteId}/activity/{id}/procress | readonly | The progress of the current activity activation|
 | {remoteId}/activity/current | readonly | JSON object containing details of the active activity (updated on activity change)|
 | {remoteId}/chanel/current | readonly | JSON object containing details of the current channel (updated on channel change)|
-| {remoteId}/state | readonly | JSON object containing details of the state (updated on state change)|
+| {remoteId}/state | readonly | JSON object containing details of the state (updated on state change)|=
 | {remoteId}/sync-status | readonly | JSON object containing the status of the current synchronization|
-| {remoteId}/activity | write | Send `id` of an activity to this channel to start the activity associated with the `id` or leave empty to stop active activity|
+| {remoteId}/activity | write | Send `id` of `name` of an activity to this channel to start the activity associated with the `id` or `name` (_leave empty to stop active activity_)|
 | {remoteId}/channel | write | Send `id` of an channel to this channel to start the channel associated with the `id`|
+| {remoteId}/button | write | Send a button-press defined by `name`)|
+| {remoteId}/button-sequence | write | Send a sequence of button-presses with given delay in between (see required JSON beow) for the active activity|
+
+### JSON structures
+_Button-presses_ example
+```
+{
+    "delay": 1000,
+    "functions": ["Select", "Play", ...]
+}
+```
+
+Above functions can be found in the JSON on the `{remoteId}/activity/current` topic after activating the required activity. Search for `Functions`.
+
+## Log
+The service will automatically create a log file under the temp-directory (for Windows services it's under `C:\WINDOWS\Temp`).
+The logs will automatically rotate every night at 00:00 and will be kept for 7 days.
 
 ## Uninstall
 1. Stop the service

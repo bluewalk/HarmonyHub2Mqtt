@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,7 +30,7 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
         {
             Logger.Initialize();
 
-            _mqttRootTopic = mqttRootTopic;
+            _mqttRootTopic = !string.IsNullOrEmpty(mqttRootTopic) ? mqttRootTopic : "harmonyhub";
             _mqttHost = mqttHost;
             _mqttPort = mqttPort;
 
@@ -37,7 +38,12 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             _mqttClient = new MqttFactory().CreateManagedMqttClient();
             _mqttClient.ApplicationMessageReceived += MqttClientOnApplicationMessageReceived;
-            _mqttClient.Connected += (sender, args) => Logger.LogMessage("MQTT: Connected");
+            _mqttClient.Connected += (sender, args) =>
+            {
+                Logger.LogMessage("MQTT: Connected");
+
+                SubscribeTopic("discover");
+            };
             _mqttClient.ConnectingFailed += (sender, args) =>
                 Logger.LogMessage("MQTT: Unable to connect ({0})", args.Exception.Message);
             _mqttClient.Disconnected += (sender, args) => Logger.LogMessage("MQTT: Disconnected");
@@ -84,6 +90,8 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             SubscribeTopic($"{hub.Info.RemoteId}/activity");
             SubscribeTopic($"{hub.Info.RemoteId}/channel");
+            SubscribeTopic($"{hub.Info.RemoteId}/button");
+            SubscribeTopic($"{hub.Info.RemoteId}/button-sequence");
 
             Logger.LogMessage("Hub: Connecting to {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
             await hub.ConnectAsync(_deviceId);
@@ -141,32 +149,54 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 #endif
             /**
              * Topic[0] = _rootTopic
-             * Topic[1] = RemoteId
-             * Topic[2] = Activity | Channel | Sync
+             * Topic[1] = {RemoteId} | Discover
+             * Topic[2] = Activity | Channel | Sync | Button | Buttons
              */
-            var hub = _hubs.FirstOrDefault(h => h.Info.RemoteId.Equals(topic[1]));
-            if (hub == null) return;
-
-            switch (topic[2])
+            try
             {
-                case "ACTIVITY":
-                    if (!string.IsNullOrEmpty(message))
-                        await hub.StartActivity(new Activity() { Id = message });
-                    else
-                        await hub.EndActivity();
-                    break;
-                case "CHANNEL":
-                    await hub.ChangeChannel(message);
-                    break;
-                case "SYNC":
-                    await hub.SyncConfigurationAsync();
-                    await hub.UpdateStateAsync();
-                    break;
+                switch (topic[1])
+                {
+                    case "DISCOVER":
+                        if (IPAddress.TryParse(message, out var ip))
+                            await Task.Run(() => PerformDiscoveryByIp(ip));
+                        else
+                            await Task.Run(PerformDiscovery);
+                        break;
 
+                    default:
+                        var hub = _hubs.FirstOrDefault(h => h.Info?.RemoteId.Equals(topic[1]) == true);
+                        if (hub == null) return;
+
+                        switch (topic[2])
+                        {
+                            case "ACTIVITY":
+                                await hub.MqttSetActivity(message);
+                                break;
+                            case "CHANNEL":
+                                await hub.MqttChangeChannel(message);
+                                break;
+                            case "BUTTON":
+                                await hub.MqttButton(message);
+                                break;
+                            case "BUTTON-SEQUENCE":
+                                await hub.MqttButtons(message);
+                                break;
+                            case "SYNC":
+                                await hub.MqttSync();
+                                break;
+                        }
+
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex);
             }
         }
         #endregion
 
+        #region Discovery
         public async Task PerformDiscovery()
         {
             Logger.LogMessage("Discovery: Starting");
@@ -176,7 +206,9 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
                 if (_hubs.Any(h => h.Info.RemoteId.Equals(e.HubInfo.RemoteId))) return;
 
                 var hub = new Hub(e.HubInfo);
-                Logger.LogMessage("Discovery: Found hub {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
+
+                Logger.LogMessage("Discovery: Found new hub {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
+                await Publish("discover/status", hub);
 
                 await PrepareHub(hub);
                 _hubs.Add(hub);
@@ -197,6 +229,24 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
             Logger.LogMessage("Discovery: Stopping");
             discoveryService.StopDiscovery();
         }
+
+        public async Task PerformDiscoveryByIp(IPAddress ip)
+        {
+            Logger.LogMessage("Discovery: Starting discovery by IP address: {0}", ip);
+
+            var hubInfo = await MqttHubHelper.DiscoverByIp(ip);
+            if (hubInfo == null) throw new Exception($"No hub on {ip}");
+
+            var hub = new Hub(hubInfo);
+
+            Logger.LogMessage("Discovery: Found new hub {0} at {1}", hub.Info.FriendlyName, hub.Info.IP);
+            Logger.LogMessage("Discovery: Stopping");
+            await Publish("discover/status", hub);
+
+            await PrepareHub(hub);
+            _hubs.Add(hub);
+        }
+        #endregion
 
         public async Task Start()
         {
@@ -220,5 +270,13 @@ namespace Net.Bluewalk.HarmonyHub2Mqtt
 
             SaveHubListToFile();
         }
+    }
+
+    public class PressButtons
+    {
+        [JsonProperty("delay")]
+        public int Delay { get; set; }
+        [JsonProperty("functions")]
+        public IEnumerable<string> Functions { get; set; }
     }
 }
